@@ -1,4 +1,4 @@
-package testftp.ftp;
+
 
 import java.util.*;
 import java.io.*;
