@@ -24,18 +24,21 @@ public class FTPServer extends Thread{
     private String clientIP = null;//客户端IP地址  
     private int clientPort = 0;//客户端端口  
     private int port = -1;//客户端端口  
-    String user;  
     
-	private static final int enteringPassiveMode = 227;
-	private static final int loggedOn = 230;
-	private static final int CWDSuccessful = 250;
-	
-	
+    private String user;  
+    
+    private int fileSize = 0;
+    private int offset = 0;
+    		
 	private boolean isLogedin = false;
 	private boolean isTransport = false;
 	
 	private int port_high = 0;
 	private int port_low = 0;
+	
+	//for port model
+	private String PORT_host = "";
+	private int PORT_port = 0;
 	
 	private boolean flag = true;
 	
@@ -137,9 +140,11 @@ public class FTPServer extends Thread{
 		
 		try {
 			System.out.println("wait for new client transfer request");
+			
 			newTransferSocket = serverSocket.accept();
-			System.out.println("transfer.localport:"+newTransferSocket.getLocalPort());
-			System.out.println("transfer.port:"+newTransferSocket.getPort());
+			
+			System.out.println("transfer.localport:" + newTransferSocket.getLocalPort());
+			System.out.println("transfer.port:" + newTransferSocket.getPort());
 			System.out.println("FTPserver new thread for next client");
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -194,13 +199,33 @@ public class FTPServer extends Thread{
 			}
 			
 		}//SIZE
-		else if (command.equals("SIZE")) {
+		else if (command.startsWith("SIZE")) {
+
 			if (isLogedin == false) {
+				System.out.println("202 can not turn to PASV model. Please login first");
 				writer.println("202 can not turn to PASV model. Please login first");
 				writer.flush();
 				return;
 			}
-			
+ 
+            
+            writer.println("150 Opening data connection.");
+            writer.flush();
+            
+            String getFileSize = command.substring(5);  
+            System.out.println(getFileSize);
+            FileInputStream fin = null;
+            
+            if (!currentDir.endsWith("\\")) {
+            	currentDir += "\\";
+			}
+            
+            fin = new FileInputStream(currentDir + getFileSize);
+			//System.out.println(fin.available());
+            fileSize = fin.available();
+            writer.println(fileSize);
+            writer.flush();
+			fin.close();
 			
 		}//CWD
 		else if(command.startsWith("CWD")){
@@ -278,22 +303,6 @@ public class FTPServer extends Thread{
             File file = new File(currentDir);  
             String dirStructrue = new String();
             
-//            DataOutputStream dos = null;//文件输出流
-//            dos = new DataOutputStream(newTransferSocket.getOutputStream());
-//            
-//            try{  
-//                dirStructrue=file.getPath();  
-//                
-//                dos.writeUTF(dirStructrue);
-//                dos.flush();
-//
-//            }catch(IOException e){  
-//                
-//                dos.writeUTF(e.getMessage());
-//                dos.flush();
-//            }  
-//            dos.close();
-            
             dirStructrue=file.getPath();  
            
 			writer.println(dirStructrue);
@@ -314,7 +323,35 @@ public class FTPServer extends Thread{
 			isTransport = true;
 			System.out.println("PASV model");
 			
-		}//LIST
+		}//TODO
+		//PORT
+		else if (command.startsWith("PORT")) {
+			
+			String PORTInfo = command.substring(5, command.length());  
+			PORTInfo = PORTInfo.trim(); 
+			String[] params = PORTInfo.split(",");
+			
+			PORT_host = params[0] + "." + params[1] + "." + params[2] + "." + params[3];  
+            String port1 = null;  
+            String port2 = null;  
+            if(params.length == 6){  
+                port1 = params[4];  
+                port2 = params[5];  
+            }  
+            else{  
+                port1 = "0";  
+                port2 = params[4];  
+            }  
+            PORT_port = Integer.parseInt(port1)*256 + Integer.parseInt(port2);  
+            
+            newTransferSocket = new Socket(PORT_host, PORT_port);
+            isTransport = true;
+            
+            writer.println("200 command successful.");
+            writer.flush();
+            
+		}
+		//LIST
 		else if(command.equals("LIST") || command.equals("ls")){
 			if (isLogedin == false) {
 				System.out.println("202 can not turn to PASV model. Please login first");
@@ -323,7 +360,7 @@ public class FTPServer extends Thread{
 				return;
 			}
  
-            if(newTransferSocket == null){
+            if(isTransport == false){
             	System.out.println("202 can not turn to PASV model. Please login first");
             	writer.println("202 can not turn to PASV model. Please login first");  
             	serverSocket = requestPort();    			
@@ -337,7 +374,7 @@ public class FTPServer extends Thread{
             
             File file=new File(currentDir);  
             String[] dirStructrue=new String[80];  
-            String strType="";  
+            String dirType="";  
             //writer.println("150 opening ascii mode data connection.");  
             //writer.flush();
             
@@ -345,15 +382,15 @@ public class FTPServer extends Thread{
 			dos = new DataOutputStream(newTransferSocket.getOutputStream());
 			
             try{  
-                dirStructrue=file.list();  
+                dirStructrue = file.list();  
                 for(int i = 0; i < dirStructrue.length; i++){  
                     if(dirStructrue[i].indexOf(".") == -1){  
-                        strType = "/";  
+                    	dirType = "/";  
                     }  
                     else{  
-                        strType = "";  
+                    	dirType = "";  
                     }  
-                    dos.writeUTF(dirStructrue[i] + strType);
+                    dos.writeUTF(dirStructrue[i] + dirType);
                     
                 }  
                 dos.writeUTF("\r\n");
@@ -366,9 +403,24 @@ public class FTPServer extends Thread{
             	dos.writeUTF(e.getMessage());
                 dos.flush();
             }  
+		}//REST
+		else if (command.startsWith("REST")) {
+			if (isLogedin == false) {
+				System.out.println("202 can not turn to PASV model. Please login first");
+				writer.println("202 can not turn to PASV model. Please login first");
+				writer.flush();
+				return;
+			}
+			
+			offset = Integer.parseInt(command.substring(5));
+            writer.println("350 Restarting at " + offset + ". Send STORE or RETRIEVE to initiate transfer.");
+            writer.flush();
+            
+            writer.println( offset );
+            writer.flush();
+            
 		}
-		//RETR
-		
+		//RETR		
 		else if (command.startsWith("RETR")) {
 			if (isLogedin == false) {
 				System.out.println("202 can not turn to PASV model. Please login first");
@@ -377,7 +429,7 @@ public class FTPServer extends Thread{
 				return;
 			}
  
-            if(newTransferSocket == null){
+            if(isTransport == false){
             	System.out.println("202 can not turn to PASV model. Please start PASV first");
             	writer.println("202 can not turn to PASV model. Please start PASV first");  
             	writer.flush();
@@ -398,6 +450,10 @@ public class FTPServer extends Thread{
 			}
             RandomAccessFile inFile = new RandomAccessFile(currentDir+downloadFile, "r");//随机访问文件  
             //OutputStream outSocket = new dataSocket_retr.getOutputStream();//输出流  
+            
+            int skipData = inFile.skipBytes(offset);
+            System.out.println("skip Data is " + skipData);
+            
             byte byteBuffer[]=new byte[1024];  
             int amount_retr;  
             try{  
@@ -412,8 +468,7 @@ public class FTPServer extends Thread{
                 writer.println("550 ERROR:File not found or access denied.");  
             } 
             
-          
-		}//TODO
+		}
 		//STOR
 		else if (command.startsWith("STOR")) {
 			if (isLogedin == false) {
@@ -423,7 +478,7 @@ public class FTPServer extends Thread{
 				return;
 			}
  
-            if(newTransferSocket == null){
+            if(isTransport == false){
             	System.out.println("202 can not turn to PASV model. Please start PASV first");
             	writer.println("202 can not turn to PASV model. Please start PASV first");  
             	writer.flush();
@@ -453,7 +508,7 @@ public class FTPServer extends Thread{
                 if (!currentDir.endsWith("\\")) {
 					currentDir += "\\";
 				}
-                fout = new FileOutputStream(new File(currentDir + uploadFile));
+                fout = new FileOutputStream(new File(currentDir + uploadFile), true);
                 System.out.println("Receiving...");
                 boolean fileFlag = true;
 				while(fileFlag ) {
@@ -481,6 +536,8 @@ public class FTPServer extends Thread{
 		}//QUIT
 		else if (command.equals("QUIT")) {
 			
+			writer.println("221 goodbye.");
+            writer.flush();
 			if (serverSocket != null) {
 				serverSocket.close();
 			}
@@ -505,6 +562,7 @@ public class FTPServer extends Thread{
 		while (flag) {
 			
 			
+		    
 			try {
 				//dis = new DataInputStream(clientCommandSocket.getInputStream());
 				//dos = new DataOutputStream(clientCommandSocket.getOutputStream());

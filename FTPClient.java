@@ -3,6 +3,7 @@ package ftpexercise;
 import java.util.*;
 import java.io.*;
 import java.net.*;
+import java.nio.file.Files;
 
 public class FTPClient{
 	
@@ -15,6 +16,9 @@ public class FTPClient{
 	
 	private static String local = "G:\\ftp\\local\\";//download dir
 	
+	private static String fileSize;
+	
+	
 	public FTPClient() {
 	}
 	
@@ -23,6 +27,8 @@ public class FTPClient{
 	
 	@SuppressWarnings("deprecation")
 	public static void main(String[] args) throws IOException{
+		
+		int offset = 0;
 		
 		BufferedReader reader; 
 		PrintWriter writer;
@@ -33,6 +39,8 @@ public class FTPClient{
 		Socket commandSocket = null;//control socket
 		Socket newTransferSocket = null;
 
+		ServerSocket serverSocket = null;//for PORT model
+		
 		try {
 			commandSocket = new Socket(HOST,PORT);
 			reader = new BufferedReader(new InputStreamReader(commandSocket.getInputStream())); 
@@ -52,7 +60,7 @@ public class FTPClient{
 		
 		
 		while (connected) {
-		
+			
 			/*
 			 * 1
 			 * 
@@ -156,6 +164,16 @@ public class FTPClient{
 						System.out.println("530 not login yet");
 						break;
 					}
+					
+					writer.println(command);
+					writer.flush();
+					
+					String responseSizestatus = reader.readLine();
+					System.out.println(responseSizestatus);
+					
+					fileSize = reader.readLine();
+					System.out.println(fileSize);
+					
 					break;
 				
 				case "PWD":
@@ -172,13 +190,6 @@ public class FTPClient{
 					
 					String Pwd = reader.readLine();
 					System.out.println(Pwd);
-//					DataInputStream dis1;
-//					dis1 = new DataInputStream(newTransferSocket.getInputStream());
-//					String spwd = "";
-//
-//					spwd = dis1.readUTF();
-//					System.out.println(spwd);
-//					dis1.close();
 					break;
 					
 				case "CWD":
@@ -193,14 +204,6 @@ public class FTPClient{
 					
 					String responseCwd = reader.readLine();
 					System.out.println(responseCwd);
-//					
-//					DataInputStream dis2;
-//					dis2 = new DataInputStream(newTransferSocket.getInputStream());
-//					String scwd = "";
-//
-//					scwd = dis2.readUTF();
-//					System.out.println(scwd);
-//					dis2.close();
 					break;
 					
 				case "PASV":
@@ -253,23 +256,52 @@ public class FTPClient{
 					
 					try {
 							newTransferSocket = new Socket(HOST,newport);
-							System.out.println("transfer.localport:"+newTransferSocket.getLocalPort());
-							System.out.println("transfer.port:"+newTransferSocket.getPort());
+							System.out.println("transfer.localport:" + newTransferSocket.getLocalPort());
+							System.out.println("transfer.port:" + newTransferSocket.getPort());
 							transPortConnect = true;
 						} catch (IOException e) {
 							
 							e.printStackTrace();
 						}
-//					dos = new DataOutputStream(newTransferSocket.getOutputStream());
-//					dis = new DataInputStream(newTransferSocket.getInputStream());
-					//dos.writeUTF("client transfer socket sent it ");
 					break;
-					
+					//TODO
 				case "PORT":
 					if (!connected || !isLogin) {
 						System.out.println("530 not login yet");
 						break;
 					}
+					
+					String PORTInfo = command.substring(5, command.length());  
+					PORTInfo = PORTInfo.trim(); 
+					String[] params = PORTInfo.split(",");
+					
+					
+					
+					String PORT_host = params[0] + "." + params[1] + "." + params[2] + "." + params[3];  
+		            String port1 = null;  
+		            String port2 = null;  
+		            if(params.length == 6){  
+		                port1 = params[4];  
+		                port2 = params[5];  
+		            }  
+		            else{  
+		                port1 = "0";  
+		                port2 = params[4];  
+		            }  
+		            int PORT_port = Integer.parseInt(port1)*256 + Integer.parseInt(port2); 
+		            
+					writer.println(command);
+					writer.flush();
+
+					serverSocket = new ServerSocket(PORT_port);
+					newTransferSocket = serverSocket.accept();
+					
+					String responsePORT = reader.readLine();
+					System.out.println(responsePORT);
+					
+					
+					transPortConnect = true;
+						
 					break;
 				case "RETR":
 					if (false == connected || false == isLogin) {
@@ -289,31 +321,38 @@ public class FTPClient{
 					DataInputStream dis11;
 					dis11 = new DataInputStream(newTransferSocket.getInputStream());
 					
-					if(responsePetr.startsWith("150")) {
-                        byte[] inputByte = new byte[1024];
-                        int length = 0;
-                        FileOutputStream fout = null;
-                        fout = new FileOutputStream(new File(local + commandValue));
-                        System.out.println("Receiving...");
-                        boolean fileFlag = true;
-						while(fileFlag ) {
-                        	if(dis11 == null || (length = dis11.read(inputByte, 0, inputByte.length)) == -1) {
-                        		fileFlag = false;
-                                break;
-                            }
-                        	                          
-                            System.out.println(length);
-                            fout.write(inputByte, 0, length);
-                            fout.flush();
-                            System.out.println("writing...");
-                        }
-						dis11.close();
-						fout.close();
-                        System.out.println("Complete!");
-                        
-                    } else {
-                        System.out.println(responsePetr);
-                    }
+						if(responsePetr.startsWith("150")) {
+	                        byte[] inputByte = new byte[1024];
+	                        int length = 0;
+	                        FileOutputStream fout = null;
+	                        fout = new FileOutputStream(new File(local + commandValue), true);
+	                        System.out.println("Receiving...");
+	                        boolean fileFlag = true;
+	                        
+	                        //for resume-file-upload-download
+	                        //dis11.skipBytes(offset);
+	                        
+							while(fileFlag ) {
+	                        	if(dis11 == null || (length = dis11.read(inputByte, 0, inputByte.length)) == -1) {
+	                        		fileFlag = false;
+	                                break;
+	                            }
+	                        	                          
+	                            System.out.println(length);
+	                            fout.write(inputByte, 0, length);
+	                            fout.flush();
+	                            System.out.println("writing...");
+	                        }
+							dis11.close();
+							fout.close();
+	                        System.out.println("Complete!");
+	                        
+	                    } else {
+	                        System.out.println(responsePetr);
+	                    }
+					
+					
+					offset = 0;
 					break;
 				case "STOR":
 					if (false == connected || false == isLogin) {
@@ -329,40 +368,61 @@ public class FTPClient{
 					
 					String responseStor = reader.readLine();
 					System.out.println(responseStor);
-					if (responseStor.startsWith("150")) {
-						
-						DataOutputStream dos = null;//文件输出流
-			            dos = new DataOutputStream(newTransferSocket.getOutputStream());
-			            String uploadFile = commandValue;
-			            
-			            RandomAccessFile inFile = new RandomAccessFile(local + "/" + uploadFile, "r");//随机访问文件  
-			            //OutputStream outSocket = new dataSocket_retr.getOutputStream();//输出流  
-			            byte byteBuffer[]=new byte[1024];  
-			            int amount_retr;  
-			            try{  
-			                while((amount_retr=inFile.read(byteBuffer)) != -1){//通过随机访问文件，在服务器上读文件  
-			                	dos.write(byteBuffer, 0, amount_retr);//通过输出流，发送到客户端  
-			                } 
-			                
-			                dos.close();
-			                System.out.println("client end transfer");
-			                inFile.close();  
-			                
-			            }catch(IOException e){  
-			            	System.out.println("550 ERROR:File not found or access denied.");
-			                writer.println("550 ERROR:File not found or access denied.");  
-			            }
-					} else {
-						break;
-					}
-					break;
 					
+					
+						if (responseStor.startsWith("150")) {
+							
+							DataOutputStream dos = null;//文件输出流
+				            dos = new DataOutputStream(newTransferSocket.getOutputStream());
+				            String uploadFile = commandValue;
+				            
+				            RandomAccessFile inFile = new RandomAccessFile(local + "/" + uploadFile, "r");
+				            //OutputStream outSocket = new dataSocket_retr.getOutputStream();
+				            byte byteBuffer[] = new byte[1024];  
+				            int amount_retr;  
+				            
+				            //for resume-file-upload-download
+				            int skipData = inFile.skipBytes(offset);
+				            System.out.println("skip Data is " + skipData);
+				            
+				            try{  
+				                while((amount_retr = inFile.read(byteBuffer, 0, byteBuffer.length)) != -1){
+				                	dos.write(byteBuffer, 0, amount_retr);
+				                } 
+				                
+				                dos.close();
+				                System.out.println("client end transfer");
+				                inFile.close();  
+				                
+				            }catch(IOException e){  
+				            	System.out.println("550 ERROR:File not found or access denied.");
+				                writer.println("550 ERROR:File not found or access denied.");  
+				            }
+						} else {
+							offset = 0;
+							break;
+						}
+					offset = 0;
+					break;
 				
 				case "REST":
 					if (!connected || !isLogin) {
 						System.out.println("530 not login yet");
 						break;
 					}
+					writer.println(command);
+					writer.flush();
+					
+					String responseRest = reader.readLine();
+					System.out.println(responseRest);
+					
+					String numOfRest = reader.readLine();
+					System.out.println(Integer.parseInt(numOfRest));
+					
+					if (responseRest.startsWith("350")) {
+						offset = Integer.parseInt(numOfRest);
+					}
+					System.out.println(offset);
 					break;
 					
 				
@@ -374,6 +434,8 @@ public class FTPClient{
 					writer.println(commandHeader);
 					writer.flush();
 					
+					String responseQuit = reader.readLine();
+					
 					if (newTransferSocket != null) {
 						newTransferSocket.close();
 					} 
@@ -381,8 +443,11 @@ public class FTPClient{
 						commandSocket.close();
 					}	
 					
+					
+					System.out.println(responseQuit);
 					System.out.println("closed client socket");
 					connected = false;
+					
 					break;
 					
 				default:
@@ -393,16 +458,6 @@ public class FTPClient{
 			
 		}
 			
-	}
-	
-	public String[] fileList() {
-		//注意字符流与字节流的不同
-		String[] currentFileList = null;
-		return currentFileList;
-	}
-	
-	public boolean isConnected() {
-		return connected;
 	}
 	
 
