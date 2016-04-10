@@ -1,4 +1,3 @@
-package ftpexercise;
 
 import java.net.ServerSocket;
 import java.util.*;

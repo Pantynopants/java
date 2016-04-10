@@ -1,4 +1,3 @@
-package ftpexercise;
 
 import java.util.*;
 import java.io.*;
@@ -229,10 +228,10 @@ public class FTPClient{
 					}
 					
 					String h1 = response.split(",")[4];
-					System.out.println(h1);
+//					System.out.println(h1);
 					String h2 = response.split(",")[5];
 					String h3 = h2.substring(0, h2.length() - 1);
-					System.out.println(h3);
+//					System.out.println(h3);
 					
 					Integer highPort = null;
 					Integer lowPort = null;
@@ -247,8 +246,8 @@ public class FTPClient{
 					int hp = 0,lp = 0;
 					hp = highPort.intValue();
 					lp = lowPort.intValue();
-					System.out.println(hp);
-					System.out.println(lp);
+//					System.out.println(hp);
+//					System.out.println(lp);
 					int newport = hp*256 + lp;
 					//String msg = dis.readUTF();
 					System.out.println("port is");
@@ -256,15 +255,14 @@ public class FTPClient{
 					
 					try {
 							newTransferSocket = new Socket(HOST,newport);
-							System.out.println("transfer.localport:" + newTransferSocket.getLocalPort());
-							System.out.println("transfer.port:" + newTransferSocket.getPort());
+//							System.out.println("transfer.localport:" + newTransferSocket.getLocalPort());
+//							System.out.println("transfer.port:" + newTransferSocket.getPort());
 							transPortConnect = true;
 						} catch (IOException e) {
 							
 							e.printStackTrace();
 						}
 					break;
-					//TODO
 				case "PORT":
 					if (!connected || !isLogin) {
 						System.out.println("530 not login yet");
@@ -297,7 +295,7 @@ public class FTPClient{
 					newTransferSocket = serverSocket.accept();
 					
 					String responsePORT = reader.readLine();
-					System.out.println(responsePORT);
+//					System.out.println(responsePORT);
 					
 					
 					transPortConnect = true;
@@ -325,27 +323,122 @@ public class FTPClient{
 	                        byte[] inputByte = new byte[1024];
 	                        int length = 0;
 	                        FileOutputStream fout = null;
-	                        fout = new FileOutputStream(new File(local + commandValue), true);
-	                        System.out.println("Receiving...");
-	                        boolean fileFlag = true;
 	                        
-	                        //for resume-file-upload-download
-	                        //dis11.skipBytes(offset);
+	                        if (!local.endsWith("\\")) {
+	                        	local += "\\";
+	            			}
 	                        
-							while(fileFlag ) {
-	                        	if(dis11 == null || (length = dis11.read(inputByte, 0, inputByte.length)) == -1) {
-	                        		fileFlag = false;
-	                                break;
-	                            }
-	                        	                          
-	                            System.out.println(length);
-	                            fout.write(inputByte, 0, length);
-	                            fout.flush();
-	                            System.out.println("writing...");
-	                        }
-							dis11.close();
-							fout.close();
-	                        System.out.println("Complete!");
+	                        int numOfFile = dis11.read(); //下载文件内文件夹的个数
+	                        System.out.println("文件个数" + numOfFile);
+	                        
+	                        if (0 == numOfFile) {
+
+		                        fout = new FileOutputStream(new File(local + commandValue), true);
+		                        System.out.println("Receiving file, pleasse wait.");
+		                        
+	                        	boolean fileFlag = true;
+		                        
+								while(fileFlag ) {
+		                        	if(dis11 == null || (length = dis11.read(inputByte, 0, inputByte.length)) == -1) {
+		                        		fileFlag = false;
+		                                break;
+		                            }
+		                        	                          
+		                            System.out.println(length);
+		                            fout.write(inputByte, 0, length);
+		                            fout.flush();
+		                            System.out.println("Receiving file, pleasse wait.");
+		                        }
+								dis11.close();
+								fout.close();
+		                        System.out.println("Complete");
+							} else {
+								
+								dis11 = new DataInputStream(newTransferSocket.getInputStream());
+								
+								System.out.println("download dir");
+								File file = new File(local + commandValue); //下载到这个文件夹
+						        if(!file.exists()){//如果不存在该文件夹
+						            file.mkdir();//新建
+						        }
+						        
+						        String fileNameFromDir = "";
+						        String oldFile = "";
+						        numOfFile = 1;
+								for(int i = 0; i < numOfFile; i++){
+									//传每个文件都要有阻塞方法！！！
+									//最好把负责读写该Socket的方法用一个类统一进行管理，然后读写方法前面加上synchronized进行同步 
+//									String transportStart = reader.readLine();
+//									System.out.println(transportStart);
+//									while (!transportStart.equals("111")) {
+//										try {
+//											Thread.sleep(1000);
+//											
+//										} catch (InterruptedException e) {
+//											e.printStackTrace();
+//										}
+//									}
+									writer.println("222 transport start");
+									writer.flush();
+									
+									byte[] inputByte1 = new byte[1024];
+									dis11 = new DataInputStream(newTransferSocket.getInputStream());
+									
+					                oldFile = fileNameFromDir;
+					                fileNameFromDir = reader.readLine(); //每个文件名
+					                
+					                if (fileNameFromDir.equals(oldFile)) {
+										continue;
+									}
+					                System.out.println("Receiving " + fileNameFromDir + ", pleasse wait.");
+					                writer.println("client says: transport start");
+									writer.flush();
+			                        
+					                String fileName = local + commandValue + "\\" + fileNameFromDir;
+					                System.out.println(fileName);
+					                
+					                File localFile = new File(local + commandValue, fileNameFromDir);
+					                localFile.createNewFile();
+					                //System.out.println(localFile.getPath());
+					                
+			                        fout = new FileOutputStream(localFile, true);
+			                        System.out.println("Receiving file(s), pleasse wait.");
+			                        
+					                boolean fileFlag = true;
+			                        
+									while(fileFlag ) {
+			                        	if(dis11 == null || (length = dis11.read(inputByte1, 0, inputByte1.length)) == -1) {
+			                        		//System.out.println(inputByte1 + "\n\n");
+			                        		fileFlag = false;
+			                                break;
+			                            }
+			                        	                          
+			                            System.out.println(length);
+			                            fout.write(inputByte1, 0, length);
+			                            fout.flush();
+			                            
+			                        }
+					                
+//					                dis11.read(inputByte1, 0, inputByte1.length);
+//					                fout.write(inputByte1, 0, length);
+//		                            fout.flush();
+					                
+					                dis11.close();
+									fout.close();
+									
+//									writer.println("Receiving file(s) successful.");
+//									writer.flush();
+//									
+//									String complete = reader.readLine();
+////			                        System.out.println(complete);
+//			                        if (complete.startsWith("151")) {
+//										break;
+//									}
+					            }
+//								dis11.close();
+								System.out.println("complete");
+							}
+	                        
 	                        
 	                    } else {
 	                        System.out.println(responsePetr);
@@ -422,7 +515,7 @@ public class FTPClient{
 					if (responseRest.startsWith("350")) {
 						offset = Integer.parseInt(numOfRest);
 					}
-					System.out.println(offset);
+//					System.out.println(offset);
 					break;
 					
 				

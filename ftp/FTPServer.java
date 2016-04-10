@@ -1,10 +1,9 @@
-package ftpexercise;
-
 
 
 import java.util.*;
 import java.io.*;
 import java.net.*;
+import java.text.SimpleDateFormat;
 
 public class FTPServer extends Thread{
 	
@@ -57,7 +56,7 @@ public class FTPServer extends Thread{
 		
 		try {
 			writer = new PrintWriter(new OutputStreamWriter(clientCommandSocket.getOutputStream()));
-			writer.println("login successful");
+			writer.println("please login");
 			writer.flush();
 			reader = new BufferedReader(new InputStreamReader(clientCommandSocket.getInputStream())); 
 		} catch (IOException e) {
@@ -170,7 +169,7 @@ public class FTPServer extends Thread{
 	}
 	
 	
-	public void selectMenu(String command) throws IOException {
+	public void selectMenu(String command) throws IOException, InterruptedException {
 		//USER
 		if (command.startsWith("USER")) {
 			if (command.substring(5).equals("a")) {
@@ -323,7 +322,7 @@ public class FTPServer extends Thread{
 			isTransport = true;
 			System.out.println("PASV model");
 			
-		}//TODO
+		}
 		//PORT
 		else if (command.startsWith("PORT")) {
 			
@@ -354,8 +353,8 @@ public class FTPServer extends Thread{
 		//LIST
 		else if(command.equals("LIST") || command.equals("ls")){
 			if (isLogedin == false) {
-				System.out.println("202 can not turn to PASV model. Please login first");
-				writer.println("202 can not turn to PASV model. Please login first");
+				System.out.println("202 Please login first");
+				writer.println("202 Please login first");
 				writer.flush();
 				return;
 			}
@@ -381,16 +380,23 @@ public class FTPServer extends Thread{
             DataOutputStream dos = null;//文件输出流
 			dos = new DataOutputStream(newTransferSocket.getOutputStream());
 			
+			
+	        
             try{  
                 dirStructrue = file.list();  
                 for(int i = 0; i < dirStructrue.length; i++){  
+                	Calendar cal = Calendar.getInstance();  
+        	        long time = file.lastModified();  
+        	        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");         
+        	        cal.setTimeInMillis(time);
+        	        
                     if(dirStructrue[i].indexOf(".") == -1){  
                     	dirType = "/";  
                     }  
                     else{  
                     	dirType = "";  
                     }  
-                    dos.writeUTF(dirStructrue[i] + dirType);
+                    dos.writeUTF(dirStructrue[i] + dirType + "\t\t" + formatter.format(cal.getTime()));
                     
                 }  
                 dos.writeUTF("\r\n");
@@ -406,25 +412,25 @@ public class FTPServer extends Thread{
 		}//REST
 		else if (command.startsWith("REST")) {
 			if (isLogedin == false) {
-				System.out.println("202 can not turn to PASV model. Please login first");
-				writer.println("202 can not turn to PASV model. Please login first");
+				System.out.println("202 Please login first");
+				writer.println("202 Please login first");
 				writer.flush();
 				return;
 			}
 			
 			offset = Integer.parseInt(command.substring(5));
-            writer.println("350 Restarting at " + offset + ". Send STORE or RETRIEVE to initiate transfer.");
+            writer.println("350 Restarting at " + offset + ". Send STOR or RETR to initiate transfer.");
             writer.flush();
             
             writer.println( offset );
             writer.flush();
             
-		}
+		}//TODO
 		//RETR		
 		else if (command.startsWith("RETR")) {
 			if (isLogedin == false) {
-				System.out.println("202 can not turn to PASV model. Please login first");
-				writer.println("202 can not turn to PASV model. Please login first");
+				System.out.println("202  Please login first");
+				writer.println("202  Please login first");
 				writer.flush();
 				return;
 			}
@@ -439,41 +445,145 @@ public class FTPServer extends Thread{
             writer.println("150 Opening data connection.");
             writer.flush();
             
-            String downloadFile = command.substring(5);  
+            String downloadFile = command.substring(5).trim();  
             System.out.println(downloadFile);
-            FileInputStream fin = null;
             
-            DataOutputStream dos = null;//文件输出流
-            dos = new DataOutputStream(newTransferSocket.getOutputStream());
             if (!currentDir.endsWith("\\")) {
             	currentDir += "\\";
 			}
-            RandomAccessFile inFile = new RandomAccessFile(currentDir+downloadFile, "r");//随机访问文件  
-            //OutputStream outSocket = new dataSocket_retr.getOutputStream();//输出流  
             
-            int skipData = inFile.skipBytes(offset);
-            System.out.println("skip Data is " + skipData);
+            File file = new File(currentDir + downloadFile);
             
-            byte byteBuffer[]=new byte[1024];  
-            int amount_retr;  
-            try{  
-                while((amount_retr=inFile.read(byteBuffer)) != -1){//通过随机访问文件，在服务器上读文件  
-                	dos.write(byteBuffer, 0, amount_retr);//通过输出流，发送到客户端  
-                } 
-                dos.close();
+            System.out.println(file);
+             
+            if(file.isDirectory() && file.exists()){
+            	
+            	System.out.println("下载文件夹");
+                String [] filenames = file.list();
+                int numOfFile = filenames.length;
+                String DownloadDirPath = currentDir + downloadFile;// now Without "\\"
+                System.out.println("传输文件夹内文件个数：" + numOfFile);
+                 
+
+                DataOutputStream dos = null;//文件输出流
+                /*
+                 *  1
+                 */
+                dos = new DataOutputStream(newTransferSocket.getOutputStream());
+                dos.write(numOfFile);
+                System.out.println(numOfFile);
+                numOfFile = 1;
+                for(int i = 0; i < numOfFile; i++){
+                	
+                	//传每个文件都要有阻塞方法！！！
+//                	writer.println("111 transport start");
+//                	writer.flush();
+//                	String transDirStart = reader.readLine();
+//                    System.out.println("\n\n\n" + transDirStart + "\n\n\n");
+//                    while (!transDirStart.startsWith("222")) {
+//						Thread.sleep(1000);
+//						transDirStart = reader.readLine();
+//	                    System.out.println("\n\n\n" + transDirStart + "\n\n\n");
+//					}
+//                    
+//                    String transDirStart1 = reader.readLine();
+//                    System.out.println("\n\n\n" + transDirStart1 + "\n\n\n");
+                    
+                    dos = new DataOutputStream(newTransferSocket.getOutputStream());
+                    /*
+                     *  2
+                     */
+                    writer.println(filenames[i]); //传输每个文件名
+                    writer.flush();
+                    
+                    System.out.println(filenames[i]);
+                    //file = new File(DownloadDirPath +"\\" + filenames[i]);
+//                    String transDirStart = reader.readLine();
+//                    System.out.println("\n\n\n" + transDirStart + "\n\n\n");
+                    
+                    FileInputStream fin = null;
+                    
+                    RandomAccessFile inFile = new RandomAccessFile(DownloadDirPath +"\\" + filenames[i], "r");//随机访问文件  
+                    
+                    int skipData = inFile.skipBytes(offset);
+                    System.out.println("skip Data is " + skipData);
+                    
+                    byte byteBuffer[] = new byte[1024];  
+                    int amount_retr;  
+                    try{  
+                        while((amount_retr = inFile.read(byteBuffer)) != -1){//通过随机访问文件，在服务器上读文件  
+                        	dos.write(byteBuffer, 0, amount_retr);//通过输出流，发送到客户端  
+                        	dos.flush();
+                        } 
+                        dos.close();
+                        
+                        System.out.println("server end transfer");
+                        inFile.close();  
+                    }catch(IOException e){  
+                        writer.println("550 ERROR:File not found or access denied.");  
+                        writer.flush();
+                    }
+                     offset = 0;
+                     
+                     
+//                     String transDirSuccess = reader.readLine();
+//                     System.out.println(transDirSuccess);
+//                     
+//                     writer.println("complete");
+//                 	 writer.flush();
+                }
+                System.out.println("complete");
+//                dos.writeUTF("\\");
                 
-                System.out.println("server end transfer");
-                inFile.close();  
-            }catch(IOException e){  
-                writer.println("550 ERROR:File not found or access denied.");  
-            } 
+            }else if(file.exists()){
+            	
+            	FileInputStream fin = null;
+                
+                DataOutputStream dos = null;//文件输出流
+                dos = new DataOutputStream(newTransferSocket.getOutputStream());
+                
+                int numOfFile = 0;
+                dos.write(numOfFile);
+                //dos.flush();
+                
+                if (!currentDir.endsWith("\\")) {
+                	currentDir += "\\";
+    			}
+                
+                RandomAccessFile inFile = new RandomAccessFile(currentDir + downloadFile, "r");//随机访问文件  
+                //OutputStream outSocket = new dataSocket_retr.getOutputStream();//输出流  
+                
+                int skipData = inFile.skipBytes(offset);
+                System.out.println("skip Data is " + skipData);
+                
+                byte byteBuffer[] = new byte[1024];  
+                int amount_retr;  
+                
+                try{  
+                    while((amount_retr = inFile.read(byteBuffer)) != -1){//通过随机访问文件，在服务器上读文件  
+                    	dos.write(byteBuffer, 0, amount_retr);//通过输出流，发送到客户端  
+                    } 
+                    dos.close();
+                    
+                    System.out.println("server end transfer");
+                    inFile.close();  
+                }catch(IOException e){  
+                    writer.println("550 ERROR:File not found or access denied.");  
+                }
+                offset = 0;
+                
+			}else{
+				writer.println("550 ERROR:File not found or access denied.");  
+				return;			
+			}
+             
             
 		}
 		//STOR
 		else if (command.startsWith("STOR")) {
 			if (isLogedin == false) {
-				System.out.println("202 can not turn to PASV model. Please login first");
-				writer.println("202 can not turn to PASV model. Please login first");
+				System.out.println("202 Please login first");
+				writer.println("202 Please login first");
 				writer.flush();
 				return;
 			}
@@ -577,6 +687,8 @@ public class FTPServer extends Thread{
 			} catch (IOException e1) {
 				System.err.println("input error");
 				e1.printStackTrace();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
 			
 				
