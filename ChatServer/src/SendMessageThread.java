@@ -1,6 +1,10 @@
+import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +18,8 @@ public class SendMessageThread extends Thread{
 	
 	private DataInputStream dis = null;
 	private DataOutputStream dos = null;
+	private BufferedReader reader = null;  
+    private PrintWriter writer = null;
 	
 	private ArrayList<Message> myMessage = new ArrayList<Message>();
 	
@@ -38,7 +44,11 @@ public class SendMessageThread extends Thread{
 		System.out.println(name + "'s send thread ");
 		while (true) {
 			try {
+				writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
+				reader = new BufferedReader(new InputStreamReader(socket.getInputStream())); 
+				
 				dos = new DataOutputStream(socket.getOutputStream());
+				dis = new DataInputStream(socket.getInputStream());
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -65,7 +75,7 @@ public class SendMessageThread extends Thread{
 				
 				/*
 				 * make a communication protocol between server and client
-				 * 
+				 * c2s
 				 * 101|name, pass -- login to server
 				 * 102| 		   --ask server for user list
 				 * 103|from, to, message -- talk to other user
@@ -73,8 +83,8 @@ public class SendMessageThread extends Thread{
 				 */
 				
 				
-				/* 
-				 * 103@from@content@sendtime;
+				/* s2c
+				 * 104@from@filename@sendtime;
 				 * 103@from@content@sendtime;
 				 * 102@server@tom,jack,lucy,lily@sendtime
 				 * 
@@ -87,26 +97,30 @@ public class SendMessageThread extends Thread{
 						Message m = myMessage.get(i);
 						if (m.getMessageType().equals("104")) {
 							dos.writeUTF(m.getMessageType() + "@" + m.getFrom() + "@" + m.getContent() + "@" + m.getSendTime() + ";");
-							System.out.println("即将接收文件是否接受消息");
-							String string = dis.readUTF();
-							System.out.println("已接受消息");
-							if (string.equals("OK")) {
-								System.out.println("即将启动发送线程");
+							dos.flush();
+//							buffer.append(m.getMessageType() + "@" + m.getFrom() + "@" + m.getContent() + "@" + m.getSendTime() + ";");
+
+							String string = reader.readLine();
+							System.out.println(name + " receive " + string);
+							
+							if (string.startsWith("ES")) {
+								System.out.println("ready to start FileSendThread");
 								new FileSendThread(StartServer.fileSocket.accept(), m.getContent()).start();
 							}else {
-								//用户拒绝接收文件，将服务器文件删除
-								
+								//if user refuse to accept file, the file should be delete
+							
 								continue;
 							}
 	//						filebuffer.append(m.getMessageType()+"@"+m.getFrom()+"@"+m.getContent()+"@"+m.getSendTime()+";");
-						}else {
+						}else{
 							buffer.append(m.getMessageType() + "@" + m.getFrom() + "@" + m.getContent() + "@" + m.getSendTime() + ";");
+
 						}
+						
 						
 						
 					}
 				} catch (Exception e) {
-					// TODO: handle exception
 				}
 				
 				if (buffer.length() > 0) {
@@ -142,6 +156,7 @@ public class SendMessageThread extends Thread{
 					e.printStackTrace();
 				}
 			}
+			
 			
 			
 		}

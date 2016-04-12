@@ -21,15 +21,7 @@ public class MessageDAO {
 	            }
 	        }
 			
-//			for (int i = 0; i < messageList.size(); i++) {
-//				
-//				//get messages from other to me
-//				if (messageList.get(i) != null || messageList.get(i).getTo().equals(me)) {
-//					message2meList.add(messageList.get(i));
-//				}
-//			}
-		
-		
+
 		
 		return message2meList;
 	}
@@ -48,7 +40,6 @@ public class MessageDAO {
 		for (int i = 0; i < myMessage.size(); i++) {
 			for (int j = 0; j < messageList.size(); j++) {
 				
-			
 				//get messages from other to me
 				if (messageList.get(j) != null && myMessage.get(i) != null && messageList.get(j).getSendTime().equals(myMessage.get(i).getSendTime())) {
 					messageList.remove(j);

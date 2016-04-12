@@ -4,13 +4,14 @@ import java.net.*;
 
 
 public class HTTPserver extends Thread{
-	private String root = "C:/Users/Administrator/Desktop/web";
+	
+	private String root = "G:/ftp";
 	
 	private PrintStream writer = null;
 	private BufferedReader reader = null;
 	private FileInputStream in = null;
-	private DataOutputStream os = null;
-	private DataInputStream is = null;
+	private OutputStream os = null;
+	private InputStream is = null;
 	
 	private Socket s = null;
 	
@@ -24,21 +25,27 @@ public class HTTPserver extends Thread{
 	}
 	public void returnResponse() throws IOException {
 		
-		
-		reader = new BufferedReader(new InputStreamReader(s.getInputStream()));
-		
+		try {
+			
+		is = this.s.getInputStream();
+		os = this.s.getOutputStream();
+			
+		reader = new BufferedReader(new InputStreamReader(is));
+		writer = new PrintStream(os); 
 		
 		String firstLineRequest;
 		firstLineRequest = reader.readLine();
 		
 		String uri = firstLineRequest.split(" ")[1];
 		System.out.println(uri);
-		
+		if (!uri.startsWith("/")) {
+			uri += "/" + uri;
+		}
 		File file = new File(root, uri);
 		
 		if (file.exists()) {
 			
-			writer = new PrintStream(s.getOutputStream());
+			
 			writer.println("HTTP/1.1 200 OK");
 			
 			if (uri.endsWith(".html")) {
@@ -51,35 +58,42 @@ public class HTTPserver extends Thread{
 			
 			in = new FileInputStream(root + uri);
 			
-			//返回内容字节数
-			writer.println("Content-Length:" + in.available());
-			//根据HTTP协议 ，空行将结束头信息
-			writer.println();
 			
+			FileInputStream fis = new FileInputStream(file);
+			
+			writer.println("Content-Length:" + fis.available());
+			writer.println();    //according to http protocol, a blank line need to split the head and content
 			writer.flush();
 			
+			//send data
 			byte[] b = new byte[1024];
 			int len = 0;
-			len = in.read(b);
-			
-			os = new DataOutputStream(s.getOutputStream());
-			while (-1 != len) {
-				os.write(b, 0, len);
-				len = in.read();
+			len = fis.read(b , 0 , b.length);
+			while(len != -1)
+			{
+				os.write(b , 0 , len);
+				len = fis.read(b, 0, b.length);
 			}
 			os.flush();
-			
-		} else {
+			fis.close();
+		}
+		else{      
+		
 			writer.println("HTTP/1.1 404 Not Found");
-			writer.println("Content-Type:text/html");
-			writer.println("Content-Length:7");
+			writer.println("Content-Type:text/plain");
+			writer.println("Content-Length:14");
 			writer.println();
-			//发送响应体
 			writer.println("访问内容不存在");
 			writer.flush();
 		}
-		
+		is.close();
+		os.close();
 		reader.close();
+		writer.close();
+		s.close();
+		} catch (SocketException e) {
+			System.out.println("reset connection");
+		}
 		return;
 	}
 	@Override

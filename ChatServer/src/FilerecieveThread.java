@@ -29,10 +29,15 @@ public class FilerecieveThread extends Thread {
 //            if (!currentDir.endsWith("\\")) {
 //				currentDir += "\\";
 //			}
-            //fout = new FileOutputStream(new File(currentDir + uploadFile), true);
-            System.out.println("Receiving...");
+            File fileInServer = new File(filepath + filename);
+            if (!fileInServer.exists()) {
+				fileInServer.createNewFile();
+			}
+            
+            fos = new FileOutputStream(fileInServer, true);
+            System.out.println("Server receiving");
             boolean fileFlag = true;
-			while(fileFlag ) {
+			while(fileFlag) {
             	if(dis == null || (length = dis.read(inputByte, 0, inputByte.length)) == -1) {
             		fileFlag = false;
                     break;
@@ -42,29 +47,12 @@ public class FilerecieveThread extends Thread {
                 System.out.println(length);
                 fos.write(inputByte, 0, length);
                 fos.flush();
-                System.out.println("writing...");
             }
-			
-//			fos = new FileOutputStream(filepath + (filepath.endsWith("\\") ? "" : "\\") + filename);
-//			byte[] buffer = new byte[20480]; // 接收缓冲 20k
-//			int num = 0; // 接收一次读取的字节数
-//			int count = 0;
-//			do {
-//				num = dis.read(buffer);
-//				if (num != (-1)) {
-//					// 接收：
-//					count += num;
-//					fos.write(buffer, 0, num);
-//					fos.flush();
-//				}
-//			} while (num != (-1));
-			
-			
 			
 			fos.close();
 			dos.close();
 			dis.close();
-			System.out.println("服务器已成功接收文件：" + filename);
+			System.out.println("server success receive：" + filename);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

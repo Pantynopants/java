@@ -38,6 +38,7 @@ public class UserThread extends Thread{
 				 */
 				
 				String message = dis.readUTF();
+				System.out.println(message);
 				if (StringUtils.getCode(message).equals("101")) {
 					//log in request name, pass 
 					
